@@ -2,8 +2,7 @@ import os
 import sys
 from flask import Flask, render_template, send_from_directory, jsonify
 
-# 🚨 移除 docx 匯入，保持應用程式穩定 🚨
-# from docx import Document # 刪除此行
+# 🚨 保持穩定：移除 docx 匯入 🚨
 
 # 部署修復 1: 明確指定 static_folder 確保靜態資源路徑正確
 app = Flask(__name__, static_folder='static') 
@@ -16,7 +15,7 @@ LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     'video': ['.mp4', '.mov', '.webm'],
-    # 🚨 關鍵修改：將 text 類型修改為只接受 .txt 檔案 🚨
+    # 🚨 關鍵修改：只接受 .txt 檔案 🚨
     'text': ['.txt'] 
 }
 
@@ -35,6 +34,7 @@ def extract_preview(path):
     """提取 TXT 文件的前三行文字作為預覽"""
     full_text = read_text_file(path)
     if full_text:
+        # 確保提取的行數是有效的
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
         return '\n'.join(lines[:3]) if lines else '尚無文字簡介'
     return '預覽讀取失敗'
@@ -43,6 +43,7 @@ def read_full_docx(path): # 函式名保留，但處理 TXT
     """讀取 TXT 文件的完整內容，用於內容詳情頁"""
     full_text = read_text_file(path)
     if full_text:
+        # 確保預覽文字長度不會超過 200 字
         preview_text = full_text[:200]
         return {
             'preview': preview_text,
@@ -97,7 +98,7 @@ def get_people(location):
         try:
             if not os.listdir(person_path): continue 
 
-            # 🚨 修改：尋找 .txt 檔案 🚨
+            # 🚨 尋找 .txt 檔案 🚨
             text_file = next((f for f in os.listdir(person_path) if f.endswith('.txt')), None)
             if text_file:
                 p_info['preview'] = extract_preview(os.path.join(person_path, text_file))
@@ -132,7 +133,7 @@ def get_content(location, person):
             elif ext in ALLOWED_EXTENSIONS['video']:
                 content['videos'].append({'name': file, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 修改：讀取 .txt 檔案 🚨
+                # 🚨 讀取 .txt 檔案 🚨
                 content['text'] = read_full_docx(os.path.join(person_path, file))
     except Exception: 
         pass
@@ -160,7 +161,7 @@ def get_contact_info(location, person):
                 name = os.path.splitext(file)[0].upper()
                 contact_data['images'].append({'name': name, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 修改：讀取 .txt 檔案 🚨
+                # 🚨 讀取 .txt 檔案 🚨
                 text_content = read_full_docx_text(os.path.join(contact_path, file))
                 if text_content:
                     name = os.path.splitext(file)[0].upper()
