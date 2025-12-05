@@ -1,14 +1,7 @@
 import os
 import sys
 from flask import Flask, render_template, send_from_directory, jsonify
-
-# 檢查 mammoth 依賴
-try:
-    import mammoth
-except ImportError:
-    print("❌ 錯誤：找不到必要套件 'python-mammoth'。")
-    print("請在終端機執行指令: pip install mammoth (並確保 requirements.txt 已更新)")
-    sys.exit(1)
+import mammoth # 確保 mammoth 已經被匯入
 
 # 部署修復 1: 明確指定 static_folder 確保靜態資源路徑正確
 app = Flask(__name__, static_folder='static') 
@@ -21,7 +14,6 @@ LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     'video': ['.mp4', '.mov', '.webm'],
-    # 🚨 關鍵修改：重新允許 .docx 檔案 🚨
     'text': ['.docx'] 
 }
 
@@ -42,30 +34,32 @@ def extract_preview(path):
     """提取 DOCX 文件的前三行文字作為預覽"""
     full_text = read_docx_content(path)
     if full_text:
-        # 提取前三行非空行
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
         return '\n'.join(lines[:3]) if lines else '尚無文字簡介'
-    return '預覽讀取失敗'
+    # 🚨 修正點 1: 確保 DOCX 讀取失敗時返回正確的提示 🚨
+    return '尚無文字簡介'
 
 def read_full_docx(path):
     """讀取 DOCX 文件的完整內容，用於內容詳情頁"""
     full_text = read_docx_content(path)
     if full_text:
-        # 提取前 200 字作為 preview 
         preview_text = full_text[:200]
         return {
             'preview': preview_text,
             'full': full_text,
             'has_doc': True
         }
-    return {'preview': '無內容', 'full': '無內容', 'has_doc': False}
+    # 🚨 修正點 2: 確保內容詳情頁返回正確的提示 🚨
+    return {'preview': '尚無文字簡介', 'full': '尚無文字簡介', 'has_doc': False}
 
 def read_full_docx_text(path):
     """讀取 DOCX 文件的純文本內容，用於聯絡資訊彈窗"""
-    return read_docx_content(path)
+    text = read_docx_content(path)
+    # 🚨 修正點 3: 確保聯絡資訊彈窗返回正確的提示 🚨
+    return text if text else '尚無文字簡介'
 
 
-# ================= 路由邏輯 (API Endpoints - 保持不變) =================
+# ================= 路由邏輯 (其餘部分保持不變) =================
 
 @app.route('/')
 def index():
@@ -106,7 +100,6 @@ def get_people(location):
         try:
             if not os.listdir(person_path): continue 
 
-            # 🚨 尋找 .docx 檔案 🚨
             docx_file = next((f for f in os.listdir(person_path) if f.endswith('.docx')), None)
             if docx_file:
                 p_info['preview'] = extract_preview(os.path.join(person_path, docx_file))
@@ -128,9 +121,9 @@ def get_people(location):
 def get_content(location, person):
     person_path = os.path.join(BASE_DIR, location, person)
     if not os.path.exists(person_path):
-        return jsonify({'text': {'preview': '無內容', 'full': '無內容', 'has_doc': False}, 'images': [], 'videos': []})
+        return jsonify({'text': {'preview': '尚無文字簡介', 'full': '尚無文字簡介', 'has_doc': False}, 'images': [], 'videos': []})
 
-    content = {'images': [], 'videos': [], 'text': {'preview': '無內容', 'full': '無內容', 'has_doc': False}}
+    content = {'images': [], 'videos': [], 'text': {'preview': '尚無文字簡介', 'full': '尚無文字簡介', 'has_doc': False}}
     try:
         for file in os.listdir(person_path):
             ext = os.path.splitext(file)[1].lower()
@@ -141,7 +134,6 @@ def get_content(location, person):
             elif ext in ALLOWED_EXTENSIONS['video']:
                 content['videos'].append({'name': file, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 讀取 .docx 檔案 🚨
                 content['text'] = read_full_docx(os.path.join(person_path, file))
     except Exception: 
         pass
@@ -159,7 +151,7 @@ def get_contact_info(location, person):
     if not os.path.exists(contact_path):
         return jsonify({'images': [], 'text': []})
 
-    contact_data = {'images': [], 'text': []}
+    contact_data = {'images': [], 'videos': [], 'text': []}
     try:
         for file in os.listdir(contact_path):
             ext = os.path.splitext(file)[1].lower()
@@ -169,7 +161,6 @@ def get_contact_info(location, person):
                 name = os.path.splitext(file)[0].upper()
                 contact_data['images'].append({'name': name, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 讀取 .docx 檔案 🚨
                 text_content = read_full_docx_text(os.path.join(contact_path, file))
                 if text_content:
                     name = os.path.splitext(file)[0].upper()
@@ -199,6 +190,5 @@ if __name__ == '__main__':
         
     print(f"Flask 應用程式啟動中，數據目錄: {BASE_DIR}")
     
-    # 部署修復: 使用動態端口
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
