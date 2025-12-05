@@ -4,6 +4,8 @@ from flask import Flask, render_template, send_from_directory, jsonify
 
 # 確保依賴已安裝
 try:
+    from docx import Document
+except ImportError:
     print("❌ 錯誤: 缺少必要套件。請執行: pip install -r requirements.txt")
     sys.exit(1)
 
