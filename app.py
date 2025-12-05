@@ -1,6 +1,7 @@
 import os
 import sys
 from flask import Flask, render_template, send_from_directory, jsonify
+
 # 檢查 docx 依賴
 try:
     from docx import Document
@@ -9,12 +10,14 @@ except ImportError:
     print("請在終端機執行指令: pip install Flask python-docx")
     sys.exit(1)
 
-# 初始化 Flask 應用
-app = Flask(__name__)
+# 🚨 部署修復 1: 明確指定 static_folder 確保在 Gunicorn 環境下靜態資源路徑正確 🚨
+app = Flask(__name__, static_folder='static') 
 
 # ================= 設定區域 =================
-# BASE_DIR 確認為小寫 data
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+
+# 🚨 固定順序設置 🚨
+LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
@@ -22,10 +25,7 @@ ALLOWED_EXTENSIONS = {
     'text': ['.docx'] 
 }
 
-# 🚨 新增：地點固定顯示順序列表 🚨
-LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 # ================= 輔助功能 (DOCX 處理) =================
-# ... (其他輔助功能保持不變) ...
 
 def extract_preview(path):
     """提取 DOCX 文件的前三行文字作為預覽"""
@@ -42,7 +42,7 @@ def read_full_docx(path):
         full_text = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
         preview_text = full_text[:200]
         return {
-            'preview': preview_text,
+            'preview': preview': preview_text,
             'full': full_text,
             'has_doc': True
         }
@@ -63,16 +63,12 @@ def read_full_docx_text(path):
 def index():
     return render_template('index.html')
 
-# 🚨 修改：強制按照 LOCATION_ORDER 列表返回地點 🚨
 @app.route('/api/locations')
 def get_locations():
     if not os.path.exists(BASE_DIR):
         return jsonify([])
     
-    # 1. 獲取 data/ 資料夾中所有實際存在的目錄 (地點)
     existing_dirs = {d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))}
-    
-    # 2. 按照 LOCATION_ORDER 的順序，過濾並返回存在的地點
     sorted_locations = [loc for loc in LOCATION_ORDER if loc in existing_dirs]
     
     return jsonify(sorted_locations)
@@ -80,13 +76,11 @@ def get_locations():
 @app.route('/api/people/<location>')
 def get_people(location):
     location_path = os.path.join(BASE_DIR, location)
-    
     if not os.path.exists(location_path):
         return jsonify([])
     
     people_list = []
     
-    # 強化掃描：使用 os.scandir 嚴格檢查資料夾並排除特殊命名
     person_dirs = []
     for entry in os.scandir(location_path):
         if entry.is_dir():
@@ -103,12 +97,10 @@ def get_people(location):
         try:
             if not os.listdir(person_path): continue 
 
-            # 尋找 DOCX 預覽
             docx_file = next((f for f in os.listdir(person_path) if f.endswith('.docx')), None)
             if docx_file:
                 p_info['preview'] = extract_preview(os.path.join(person_path, docx_file))
             
-            # 尋找圖片縮圖
             thumbnail_file = next((f for f in os.listdir(person_path) 
                                    if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS['image']), None)
             if thumbnail_file:
@@ -195,4 +187,8 @@ if __name__ == '__main__':
         os.makedirs(BASE_DIR)
         
     print(f"Flask 應用程式啟動中，數據目錄: {BASE_DIR}")
-    app.run(debug=True)
+    
+    # 🚨 部署修復 2: 使用動態端口，確保部署平台能正確啟動 🚨
+    # 在部署環境中，Gunicorn/Render/Heroku 會設定 PORT 環境變數
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
