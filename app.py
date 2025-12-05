@@ -1,8 +1,9 @@
 import os
 import sys
 from flask import Flask, render_template, send_from_directory, jsonify
-# 🚨 移除 python-docx 匯入：這是為了確保應用程式在雲端主機上能穩定啟動 🚨
-# 你的程式碼將不再崩潰，但 DOCX 相關的文字會顯示為預設訊息。
+
+# 🚨 移除 docx 匯入，保持應用程式穩定 🚨
+# from docx import Document # 刪除此行
 
 # 部署修復 1: 明確指定 static_folder 確保靜態資源路徑正確
 app = Flask(__name__, static_folder='static') 
@@ -10,31 +11,52 @@ app = Flask(__name__, static_folder='static')
 # ================= 設定區域 =================
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
-# 固定順序設置 
 LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     'video': ['.mp4', '.mov', '.webm'],
-    'text': ['.docx'] 
+    # 🚨 關鍵修改：將 text 類型修改為只接受 .txt 檔案 🚨
+    'text': ['.txt'] 
 }
 
-# ================= 輔助功能 (DOCX 處理 - 暫時繞過) =================
+# ================= 輔助功能 (TXT 處理) =================
+
+def read_text_file(path):
+    """讀取 TXT 文件的全部內容，用於輔助函式"""
+    try:
+        # 使用 utf-8 編碼讀取
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception:
+        return None
 
 def extract_preview(path):
-    """提取 DOCX 文件的前三行文字作為預覽 (暫時返回預設文本)"""
-    return 'DOCX 處理功能已暫時關閉'
+    """提取 TXT 文件的前三行文字作為預覽"""
+    full_text = read_text_file(path)
+    if full_text:
+        lines = [line.strip() for line in full_text.splitlines() if line.strip()]
+        return '\n'.join(lines[:3]) if lines else '尚無文字簡介'
+    return '預覽讀取失敗'
 
-def read_full_docx(path):
-    """讀取 DOCX 文件的完整內容 (暫時返回預設內容)"""
-    return {'preview': 'DOCX 處理功能已暫時關閉', 'full': 'DOCX 處理功能已暫時關閉，請聯絡管理員', 'has_doc': False}
+def read_full_docx(path): # 函式名保留，但處理 TXT
+    """讀取 TXT 文件的完整內容，用於內容詳情頁"""
+    full_text = read_text_file(path)
+    if full_text:
+        preview_text = full_text[:200]
+        return {
+            'preview': preview_text,
+            'full': full_text,
+            'has_doc': True
+        }
+    return {'preview': '無內容', 'full': '無內容', 'has_doc': False}
 
-def read_full_docx_text(path):
-    """讀取 DOCX 文件的純文本內容 (暫時返回預設內容)"""
-    return 'DOCX 處理功能已暫時關閉'
+def read_full_docx_text(path): # 函式名保留，但處理 TXT
+    """讀取 TXT 文件的純文本內容，用於聯絡資訊彈窗"""
+    return read_text_file(path)
 
 
-# ================= 路由邏輯 (API Endpoints) =================
+# ================= 路由邏輯 (API Endpoints - 保持不變) =================
 
 @app.route('/')
 def index():
@@ -75,9 +97,11 @@ def get_people(location):
         try:
             if not os.listdir(person_path): continue 
 
-            # 🚨 這裡不再嘗試讀取 DOCX 檔案
-            p_info['preview'] = extract_preview(os.path.join(person_path, 'dummy.docx')) # 呼叫暫時函式
-
+            # 🚨 修改：尋找 .txt 檔案 🚨
+            text_file = next((f for f in os.listdir(person_path) if f.endswith('.txt')), None)
+            if text_file:
+                p_info['preview'] = extract_preview(os.path.join(person_path, text_file))
+            
             thumbnail_file = next((f for f in os.listdir(person_path) 
                                    if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS['image']), None)
             if thumbnail_file:
@@ -108,8 +132,8 @@ def get_content(location, person):
             elif ext in ALLOWED_EXTENSIONS['video']:
                 content['videos'].append({'name': file, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 這裡不再嘗試讀取 DOCX 檔案
-                content['text'] = read_full_docx(os.path.join(person_path, 'dummy.docx'))
+                # 🚨 修改：讀取 .txt 檔案 🚨
+                content['text'] = read_full_docx(os.path.join(person_path, file))
     except Exception: 
         pass
     return jsonify(content)
@@ -135,9 +159,9 @@ def get_contact_info(location, person):
             if ext in ALLOWED_EXTENSIONS['image']:
                 name = os.path.splitext(file)[0].upper()
                 contact_data['images'].append({'name': name, 'url': url})
-            # 🚨 這裡不再嘗試讀取 DOCX 檔案
             elif ext in ALLOWED_EXTENSIONS['text']:
-                text_content = read_full_docx_text(os.path.join(contact_path, 'dummy.docx'))
+                # 🚨 修改：讀取 .txt 檔案 🚨
+                text_content = read_full_docx_text(os.path.join(contact_path, file))
                 if text_content:
                     name = os.path.splitext(file)[0].upper()
                     contact_data['text'].append({'name': name, 'content': text_content})
