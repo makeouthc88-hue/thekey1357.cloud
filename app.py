@@ -8,26 +8,25 @@ app = Flask(__name__, static_folder='static')
 # ================= 設定區域 =================
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
-# 🚨 固定順序設置 🚨
+# 固定順序設置 
 LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     'video': ['.mp4', '.mov', '.webm'],
-    # 🚨 關鍵修改：最終切換到 .txt 檔案 🚨
     'text': ['.txt'] 
 }
 
 # ================= 輔助功能 (TXT 處理 - 最終版本) =================
 
 def read_text_file(path):
-    """讀取 TXT 文件的全部內容，使用 UTF-8 編碼確保 Emoji 完整性"""
+    """讀取 TXT 文件的全部內容，使用 UTF-8 編碼，並忽略潛在的編碼錯誤"""
     try:
-        # 這是確保 Emoji 完整性的關鍵
-        with open(path, 'r', encoding='utf-8') as f:
+        # 🚨 關鍵修正：errors='ignore' 確保程式不會在雲端因為編碼問題而崩潰 🚨
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
             return f.read()
     except Exception as e:
-        print(f"TXT 讀取錯誤: {e}")
+        print(f"🚨 TXT 讀取失敗: {path}, 錯誤: {e}") # 輸出到日誌
         return None
 
 def extract_preview(path):
@@ -55,7 +54,7 @@ def read_full_docx_text(path): # 函式名保留，但處理 TXT
     return read_text_file(path)
 
 
-# ================= 路由邏輯 (API Endpoints) =================
+# ================= 路由邏輯 (保持不變) =================
 
 @app.route('/')
 def index():
@@ -66,7 +65,6 @@ def get_locations():
     if not os.path.exists(BASE_DIR):
         return jsonify([])
     
-    # 獲取實際存在的目錄並按照 LOCATION_ORDER 排序
     existing_dirs = {d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))}
     sorted_locations = [loc for loc in LOCATION_ORDER if loc in existing_dirs]
     
