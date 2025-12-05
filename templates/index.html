@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>情熱天堂 - 誘惑資料庫 (Midnight Theme)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        /* 🚨 亂碼與排版修復 */
+        body {
+            font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+        }
+
+        .content-prose {
+            line-height: 2;
+            letter-spacing: 0.03em;
+            text-align: justify;
+            text-shadow: 0 0 2px rgba(255, 255, 255, 0.15); 
+        }
+
+        .glass-card {
+            backdrop-filter: blur(10px); 
+            background-color: rgba(69, 10, 10, 0.4); /* 紅色系深色透明 */
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5); 
+        }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+
+<body class="bg-[#180202] min-h-screen font-sans text-gray-100" x-data="appData()">
+
+    <header class="sticky top-0 z-40 glass-card">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <h1 class="text-2xl font-black text-red-400 cursor-pointer hover:text-red-300 transition flex items-center" @click="reset()">
+                <img src="/static/logo.png" alt="情熱天堂Logo" class="w-6 h-6 mr-2 object-contain">
+                情熱天堂::數據庫
+            </h1>
+            
+            <div class="flex space-x-3 overflow-x-auto flex-nowrap p-2 -m-2">
+                <template x-for="loc in locations" :key="loc">
+                    <button @click="selectLocation(loc)" 
+                            :class="currentLocation === loc ? 'bg-red-800 text-white shadow-red-500/50 ring-2 ring-red-400' : 'glass-card text-red-200 hover:bg-red-700/50 hover:text-white'"
+                            class="px-4 py-1.5 rounded-md text-sm font-semibold transition duration-300 ease-in-out whitespace-nowrap" 
+                            x-text="loc"></button>
+                </template>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div x-show="!currentLocation" class="text-center py-20 bg-black/50 p-10 rounded-xl shadow-xl border border-red-900">
+            <p class="text-4xl font-extrabold text-red-400 mb-4">歡迎進入 情熱天堂</p>
+            <p class="text-xl text-gray-300">請從上方選單中，選取您的目標地點。</p>
+        </div>
+
+        <div x-show="currentLocation && !currentPerson" x-cloak x-transition.opacity>
+            
+            <div class="flex justify-between items-end mb-8 border-b border-red-700 pb-3">
+                <h2 class="text-3xl font-extrabold text-red-300">
+                    <span class="mr-3 text-red-400">LOC::</span> <span x-text="currentLocation"></span>
+                </h2>
+                <button x-show="currentLocation !== '聯絡我們'" @click="openContactModal('_location_')" 
+                        class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-semibold shadow-md shadow-red-500/30 transition whitespace-nowrap">
+                    地點通用聯絡方式 📞
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                <template x-for="p in people" :key="p.name">
+                    <div @click="selectPerson(p)" 
+                         class="glass-card rounded-xl hover:-translate-y-2 hover:ring-2 hover:ring-red-500 cursor-pointer transition duration-500 flex flex-col overflow-hidden">
+                        
+                        <div class="h-64 relative overflow-hidden group bg-black/50 flex items-center justify-center">
+                            <img x-show="p.thumbnail" :src="p.thumbnail" 
+                                 class="w-full h-full object-contain transition duration-500 transform group-hover:scale-105 group-hover:brightness-110">
+                            <div x-show="!p.thumbnail" class="w-full h-full absolute inset-0 flex items-center justify-center text-gray-500 text-lg font-medium">NO IMAGE</div>
+                            
+                            <div class="absolute inset-0 top-auto h-1/3 bg-gradient-to-t from-black/90 to-transparent flex items-end p-4">
+                                <h3 class="font-bold text-xl text-white drop-shadow-lg" x-text="p.name"></h3>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 flex-grow border-t border-red-900/50">
+                            <p class="text-sm text-red-200 whitespace-pre-line line-clamp-3" x-text="p.preview"></p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div x-show="people.length === 0" class="text-center text-red-600 py-16">
+                <p class="text-xl font-light">ERR:: 0x0001 - 資料庫中無匹配記錄。</p>
+            </div>
+        </div>
+
+        <div x-show="currentPerson" x-cloak x-transition.opacity>
+            <div class="flex space-x-4 mb-6">
+                <button @click="currentPerson = null" 
+                        class="px-4 py-2 bg-red-800/30 hover:bg-red-700/50 text-red-300 rounded-full text-sm font-mono tracking-wider transition">
+                    &lt; BACK TO LIST
+                </button>
+                <button @click="openContactModal(currentPerson)" 
+                        :class="currentLocation === '聯絡我們' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'"
+                        class="px-4 py-2 text-white rounded-full text-sm font-semibold shadow-lg shadow-red-500/30 transition">
+                    <span x-text="currentLocation === '聯絡我們' ? '📞 顯示聯絡資訊' : '📞 人員專屬聯絡資訊'"></span>
+                </button>
+            </div>
+            
+            <h2 class="text-4xl font-black mb-8 text-white border-b-2 border-red-500 pb-3">
+                <span class="mr-3 text-red-400">ID::</span> <span x-text="currentPerson"></span>
+            </h2>
+
+            <div x-show="content.text.has_doc" class="glass-card p-6 sm:p-8 rounded-xl mb-10 border-l-4 border-red-400">
+                <h3 class="text-xl font-bold mb-4 text-red-300">INFO:: DOCUMENT</h3>
+                <div class="content-prose text-gray-200 font-medium">
+                    <span x-show="!textExpanded" x-text="content.text.preview + '...' " class="whitespace-pre-wrap"></span>
+                    <span x-show="textExpanded" x-text="content.text.full" class="whitespace-pre-wrap"></span>
+                </div>
+                <button @click="textExpanded = !textExpanded" class="mt-4 text-red-400 hover:text-red-300 text-sm font-mono transition duration-200" x-text="textExpanded ? '[COLLAPSE ▲]' : '[EXPAND ▼]'"></button>
+            </div>
+            
+            <h3 class="text-2xl font-bold mb-4 text-red-300">MEDIA:: ASSETS</h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <template x-for="vid in content.videos">
+                    <div class="aspect-video bg-black/70 rounded-xl shadow-2xl hover:ring-4 hover:ring-red-600 overflow-hidden relative group cursor-pointer transition duration-500" 
+                         @click="openModal('video', vid.url)">
+                        <video :src="vid.url" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition duration-300"></video>
+                        <div class="absolute inset-0 flex items-center justify-center text-white text-5xl bg-black/40 group-hover:bg-black/20 transition">
+                            <svg class="w-12 h-12 text-white transform group-hover:scale-110 transition duration-300 drop-shadow-lg" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </template>
+                <template x-for="img in content.images">
+                    <div class="aspect-square bg-black/70 rounded-xl shadow-2xl hover:ring-4 hover:ring-red-600 overflow-hidden cursor-pointer transition duration-500" 
+                         @click="openModal('image', img.url)">
+                        <img :src="img.url" class="w-full h-full object-cover transition duration-500 transform hover:scale-110">
+                    </div>
+                </template>
+            </div>
+        </div>
+    </main>
+
+    <div x-show="modal.open" class="fixed inset-0 z-50 bg-black/98 flex items-center justify-center p-4" x-cloak @click.self="closeModal()">
+        <button @click="closeModal()" class="absolute top-4 right-4 text-white/70 hover:text-white text-5xl font-light transition">&times;</button>
+        <img x-show="modal.type === 'image'" :src="modal.url" class="max-h-[90vh] max-w-full rounded-xl shadow-2xl ring-2 ring-red-500/50">
+        <video x-show="modal.type === 'video'" :src="modal.url" controls autoplay class="max-h-[90vh] max-w-full rounded-xl shadow-2xl ring-2 ring-red-500/50"></video>
+    </div>
+
+    <div x-show="contactModal.open" x-transition.opacity class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" x-cloak @click.self="contactModal.open = false">
+        <div class="glass-card rounded-xl shadow-2xl w-full max-w-2xl p-8 transform transition duration-300 scale-100" @click.stop="">
+            <div class="flex justify-between items-center border-b border-red-700 pb-3 mb-6">
+                <h3 class="text-2xl font-bold text-red-300">
+                    <span x-text="contactModal.title"></span>
+                </h3>
+                <button @click="contactModal.open = false" class="text-gray-400 hover:text-white text-3xl font-light">&times;</button>
+            </div>
+            
+            <div class="space-y-8 max-h-[80vh] overflow-y-auto pr-2">
+                <div x-show="contactData.images.length > 0">
+                    <h4 class="text-xl font-semibold mb-4 text-red-400">🖼️ 身份/聯繫 QR Codes</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                        <template x-for="img in contactData.images" :key="img.name">
+                            <div class="bg-black/50 p-3 rounded-lg flex flex-col items-center justify-center shadow-lg hover:ring-2 hover:ring-red-500 transition">
+                                <p class="text-sm font-mono mb-2 text-red-200 uppercase" x-text="img.name"></p>
+                                <img :src="img.url" class="w-full aspect-square object-contain rounded">
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="contactData.text.length > 0">
+                    <h4 class="text-xl font-semibold mb-4 text-red-400">📄 相關 ID/網址資訊</h4>
+                    <template x-for="txt in contactData.text" :key="txt.name">
+                        <div class="bg-black/50 p-4 rounded-lg mb-4 border-l-4 border-red-600 shadow-md">
+                            <p class="text-lg font-mono mb-2 text-red-300 uppercase" x-text="txt.name"></p>
+                            <pre class="text-gray-200 text-sm whitespace-pre-wrap leading-relaxed" x-text="txt.content"></pre>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="contactData.images.length === 0 && contactData.text.length === 0" class="text-center text-red-600 py-4">
+                <p>無此聯絡資訊，請確認資料夾是否存在。</p>
+            </div>
+
+        </div>
+    </div>
+
+
+    <script>
+        function appData() {
+            return {
+                locations: [], currentLocation: null,
+                people: [], currentPerson: null,
+                content: { text: {}, images: [], videos: [] },
+                textExpanded: false, 
+                modal: { open: false, type: '', url: '' },
+                contactModal: { open: false, title: '' },
+                contactData: { images: [], text: [] }, 
+
+                async init() {
+                    const res = await fetch('/api/locations');
+                    this.locations = await res.json();
+                },
+                async selectLocation(loc) {
+                    this.currentLocation = loc; this.currentPerson = null;
+                    this.contactData = { images: [], text: [] }; 
+                    
+                    const res = await fetch(`/api/people/${loc}`);
+                    this.people = await res.json();
+
+                    // 🚨 聯絡我們：單項自動跳轉邏輯 🚨
+                    if (loc === '聯絡我們' && this.people.length === 1) {
+                        this.selectPerson(this.people[0]);
+                    }
+                },
+                async selectPerson(p) {
+                    this.currentPerson = p.name; this.textExpanded = false;
+                    this.contactData = { images: [], text: [] }; 
+                    
+                    const contentRes = await fetch(`/api/content/${this.currentLocation}/${p.name}`);
+                    this.content = await contentRes.json();
+                },
+                openModal(type, url) { this.modal = { open: true, type, url }; },
+                closeModal() { this.modal.open = false; this.modal.url = ''; },
+                
+                async openContactModal(personOrLocation) {
+                    this.contactModal.open = true;
+                    this.contactData = { images: [], text: [] };
+                    
+                    let personTag = personOrLocation;
+                    let title = '';
+
+                    if (personOrLocation === '_location_') {
+                        // 地點通用資料
+                        personTag = '_location_';
+                        title = `📞 ${this.currentLocation} 地點通用聯絡資訊`;
+                    } else {
+                        // 人員專屬資料
+                        title = `📞 ${personOrLocation} 專屬聯絡資訊`;
+                    }
+                    
+                    this.contactModal.title = title;
+
+                    // 呼叫 API
+                    const contactRes = await fetch(`/api/contact/${this.currentLocation}/${personTag}`);
+                    this.contactData = await contactRes.json();
+                },
+                
+                reset() { this.currentLocation = null; this.currentPerson = null; }
+            }
+        }
+    </script>
+</body>
+</html>
