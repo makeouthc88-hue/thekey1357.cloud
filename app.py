@@ -13,8 +13,8 @@ except ImportError:
 app = Flask(__name__)
 
 # ================= 設定區域 =================
-# 指向你的 Google Drive G 槽 (請確認 G: 槽已經掛載)
-BASE_DIR = r"G:\我的雲端硬碟\情熱天堂 每日班表\情熱天堂班表"
+# 設定路徑為專案資料夾內的 'data' 目錄
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
