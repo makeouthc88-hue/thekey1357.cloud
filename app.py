@@ -7,7 +7,7 @@ try:
     from docx import Document
 except ImportError:
     print("❌ 錯誤：找不到必要套件 'python-docx'。")
-    print("請在終端機執行指令: pip install Flask python-docx")
+    print("請在終端機執行指令: pip install -r requirements.txt")
     sys.exit(1)
 
 # 🚨 部署修復 1: 明確指定 static_folder 確保在 Gunicorn 環境下靜態資源路徑正確 🚨
@@ -40,9 +40,10 @@ def read_full_docx(path):
     try:
         doc = Document(path)
         full_text = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
-        preview_text = full_text[:200]
+        # 確保預覽文字長度不會超過 200 字
+        preview_text = full_text[:200] 
         return {
-            'preview': preview': preview_text,
+            'preview': preview_text,
             'full': full_text,
             'has_doc': True
         }
@@ -68,6 +69,7 @@ def get_locations():
     if not os.path.exists(BASE_DIR):
         return jsonify([])
     
+    # 獲取實際存在的目錄並按照 LOCATION_ORDER 排序
     existing_dirs = {d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))}
     sorted_locations = [loc for loc in LOCATION_ORDER if loc in existing_dirs]
     
@@ -85,6 +87,7 @@ def get_people(location):
     for entry in os.scandir(location_path):
         if entry.is_dir():
             dir_name = entry.name
+            # 排除 contact 資料夾和隱藏資料夾
             if dir_name.lower() == 'contact' or dir_name.startswith('.'):
                 continue
             else:
@@ -137,6 +140,7 @@ def get_content(location, person):
         pass
     return jsonify(content)
 
+# 聯絡資訊 API 路由
 @app.route('/api/contact/<location>/<person>')
 def get_contact_info(location, person):
     if person == '_location_':
@@ -168,10 +172,12 @@ def get_contact_info(location, person):
         pass
     return jsonify(contact_data)
 
+# 檔案服務路由 (給縮圖、圖片、影片使用)
 @app.route('/files/<location>/<person>/<filename>')
 def serve_file(location, person, filename):
     return send_from_directory(os.path.join(BASE_DIR, location, person), filename)
 
+# 檔案服務路由 (給聯絡資訊檔案使用)
 @app.route('/files/<location>/<person_or_location_tag>/contact/<filename>')
 def serve_contact_file(location, person_or_location_tag, filename):
     if person_or_location_tag == '_location_':
@@ -182,13 +188,13 @@ def serve_contact_file(location, person_or_location_tag, filename):
     return send_from_directory(base, filename)
 
 
+# 本地啟動區塊 (部署環境下會使用 Gunicorn 運行)
 if __name__ == '__main__':
     if not os.path.exists(BASE_DIR):
         os.makedirs(BASE_DIR)
         
     print(f"Flask 應用程式啟動中，數據目錄: {BASE_DIR}")
     
-    # 🚨 部署修復 2: 使用動態端口，確保部署平台能正確啟動 🚨
-    # 在部署環境中，Gunicorn/Render/Heroku 會設定 PORT 環境變數
+    # 🚨 部署修復 2: 使用動態端口 🚨
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
