@@ -2,7 +2,13 @@ import os
 import sys
 from flask import Flask, render_template, send_from_directory, jsonify
 
-# 🚨 保持穩定：移除 docx 匯入 🚨
+# 檢查 mammoth 依賴
+try:
+    import mammoth
+except ImportError:
+    print("❌ 錯誤：找不到必要套件 'python-mammoth'。")
+    print("請在終端機執行指令: pip install mammoth (並確保 requirements.txt 已更新)")
+    sys.exit(1)
 
 # 部署修復 1: 明確指定 static_folder 確保靜態資源路徑正確
 app = Flask(__name__, static_folder='static') 
@@ -15,35 +21,37 @@ LOCATION_ORDER = ["西門", "板橋", "中壢", "桃園", "聯絡我們"]
 ALLOWED_EXTENSIONS = {
     'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     'video': ['.mp4', '.mov', '.webm'],
-    # 🚨 關鍵修改：只接受 .txt 檔案 🚨
-    'text': ['.txt'] 
+    # 🚨 關鍵修改：重新允許 .docx 檔案 🚨
+    'text': ['.docx'] 
 }
 
-# ================= 輔助功能 (TXT 處理) =================
+# ================= 輔助功能 (使用 MAMMOTH 處理 DOCX) =================
 
-def read_text_file(path):
-    """讀取 TXT 文件的全部內容，用於輔助函式"""
+def read_docx_content(path):
+    """使用 mammoth 將 DOCX 轉換為純文本，保留內容和 Emoji"""
     try:
-        # 使用 utf-8 編碼讀取
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception:
+        # 使用 mammoth 讀取 DOCX 並轉換為純文本 (plain text)
+        with open(path, "rb") as docx_file:
+            result = mammoth.extract_raw_text(docx_file)
+            return result.value.strip()
+    except Exception as e:
+        print(f"MAMMOTH 讀取 DOCX 錯誤: {e}")
         return None
 
 def extract_preview(path):
-    """提取 TXT 文件的前三行文字作為預覽"""
-    full_text = read_text_file(path)
+    """提取 DOCX 文件的前三行文字作為預覽"""
+    full_text = read_docx_content(path)
     if full_text:
-        # 確保提取的行數是有效的
+        # 提取前三行非空行
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
         return '\n'.join(lines[:3]) if lines else '尚無文字簡介'
     return '預覽讀取失敗'
 
-def read_full_docx(path): # 函式名保留，但處理 TXT
-    """讀取 TXT 文件的完整內容，用於內容詳情頁"""
-    full_text = read_text_file(path)
+def read_full_docx(path):
+    """讀取 DOCX 文件的完整內容，用於內容詳情頁"""
+    full_text = read_docx_content(path)
     if full_text:
-        # 確保預覽文字長度不會超過 200 字
+        # 提取前 200 字作為 preview 
         preview_text = full_text[:200]
         return {
             'preview': preview_text,
@@ -52,9 +60,9 @@ def read_full_docx(path): # 函式名保留，但處理 TXT
         }
     return {'preview': '無內容', 'full': '無內容', 'has_doc': False}
 
-def read_full_docx_text(path): # 函式名保留，但處理 TXT
-    """讀取 TXT 文件的純文本內容，用於聯絡資訊彈窗"""
-    return read_text_file(path)
+def read_full_docx_text(path):
+    """讀取 DOCX 文件的純文本內容，用於聯絡資訊彈窗"""
+    return read_docx_content(path)
 
 
 # ================= 路由邏輯 (API Endpoints - 保持不變) =================
@@ -98,10 +106,10 @@ def get_people(location):
         try:
             if not os.listdir(person_path): continue 
 
-            # 🚨 尋找 .txt 檔案 🚨
-            text_file = next((f for f in os.listdir(person_path) if f.endswith('.txt')), None)
-            if text_file:
-                p_info['preview'] = extract_preview(os.path.join(person_path, text_file))
+            # 🚨 尋找 .docx 檔案 🚨
+            docx_file = next((f for f in os.listdir(person_path) if f.endswith('.docx')), None)
+            if docx_file:
+                p_info['preview'] = extract_preview(os.path.join(person_path, docx_file))
             
             thumbnail_file = next((f for f in os.listdir(person_path) 
                                    if os.path.splitext(f)[1].lower() in ALLOWED_EXTENSIONS['image']), None)
@@ -133,7 +141,7 @@ def get_content(location, person):
             elif ext in ALLOWED_EXTENSIONS['video']:
                 content['videos'].append({'name': file, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 讀取 .txt 檔案 🚨
+                # 🚨 讀取 .docx 檔案 🚨
                 content['text'] = read_full_docx(os.path.join(person_path, file))
     except Exception: 
         pass
@@ -161,7 +169,7 @@ def get_contact_info(location, person):
                 name = os.path.splitext(file)[0].upper()
                 contact_data['images'].append({'name': name, 'url': url})
             elif ext in ALLOWED_EXTENSIONS['text']:
-                # 🚨 讀取 .txt 檔案 🚨
+                # 🚨 讀取 .docx 檔案 🚨
                 text_content = read_full_docx_text(os.path.join(contact_path, file))
                 if text_content:
                     name = os.path.splitext(file)[0].upper()
