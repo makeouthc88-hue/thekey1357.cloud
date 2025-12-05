@@ -3,303 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>情熱天堂 - 雲端班表瀏覽器</title>
-    <!-- 引入 Tailwind CSS (美化排版) -->
+    <title>情熱天堂 - 雲端班表</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script>
-        function appData() {
-            return {
-                isDemoMode: false,
-                locations: [],
-                currentLocation: null,
-                people: [],
-                currentPerson: null,
-                content: { images: [], videos: [], text: { preview: '', full: '', has_doc: false } }, 
-                textExpanded: false,
-                modal: { open: false, type: '', url: '' },
-
-                // 模擬資料 (已更新為支援卡片顯示的結構)
-                mockData: {
-                    locations: ['(Demo) 桃園', '(Demo) 中壢', '(Demo) 板橋'],
-                    people: [
-                        { name: '(Demo) 熊寶貝', thumbnail: 'https://via.placeholder.com/400x600?text=Portrait', preview: '這是熊寶貝的簡介。\n她非常活潑可愛。\n點擊查看更多內容...' },
-                        { name: '(Demo) 小天使', thumbnail: null, preview: '這是小天使的簡介。\n這裡只有兩行字。' },
-                        { name: '(Demo) 測試員', thumbnail: 'https://via.placeholder.com/400x600?text=Test', preview: '這是一個測試帳號。\n沒有太多內容。\n但是有三行預覽。' }
-                    ],
-                    content: {
-                        text: { 
-                            has_doc: true, 
-                            preview: '這是內頁的詳細內容...', 
-                            full: '這是內頁的詳細內容...\n這裡會有完整的文章。' 
-                        },
-                        images: [
-                            { name: 'Demo1.jpg', url: 'https://via.placeholder.com/300x300' }
-                        ],
-                        videos: []
-                    }
-                },
-
-                async init() {
-                    try {
-                        const res = await fetch('/api/locations');
-                        if (res.ok) {
-                            this.locations = await res.json();
-                            if (this.locations.length > 0) {
-                                this.selectLocation(this.locations[0]);
-                            }
-                        } else {
-                            throw new Error('API response not ok');
-                        }
-                    } catch (e) {
-                        console.warn("無法連接後端，切換至演示模式:", e);
-                        this.enableDemoMode();
-                    }
-                },
-
-                enableDemoMode() {
-                    this.isDemoMode = true;
-                    this.locations = this.mockData.locations;
-                    this.selectLocation(this.locations[0]);
-                },
-
-                async selectLocation(loc) {
-                    this.currentLocation = loc;
-                    this.currentPerson = null;
-                    
-                    if (this.isDemoMode) {
-                        this.people = this.mockData.people;
-                        return;
-                    }
-
-                    try {
-                        const res = await fetch(`/api/people/${loc}`);
-                        if (res.ok) {
-                            this.people = await res.json();
-                        }
-                    } catch (e) {
-                        console.error("讀取地點失敗:", e);
-                    }
-                },
-
-                async selectPerson(personObj) {
-                    // 因為現在 people 是一個包含詳細資料的物件，所以要用 personObj.name
-                    this.currentPerson = personObj.name;
-                    this.textExpanded = false;
-                    this.content = { images: [], videos: [], text: { preview: '', full: '', has_doc: false } };
-
-                    if (this.isDemoMode) {
-                        setTimeout(() => {
-                            this.content = JSON.parse(JSON.stringify(this.mockData.content));
-                        }, 200);
-                        return;
-                    }
-
-                    try {
-                        const res = await fetch(`/api/content/${this.currentLocation}/${this.currentPerson}`);
-                        if (res.ok) {
-                            this.content = await res.json();
-                        }
-                    } catch (e) {
-                        console.error("讀取內容失敗:", e);
-                    }
-                },
-
-                openModal(type, url) {
-                    if (this.isDemoMode && type === 'video') {
-                        alert("演示模式下無法播放真實影片");
-                        return;
-                    }
-                    this.modal.type = type;
-                    this.modal.url = url;
-                    this.modal.open = true;
-                },
-
-                closeModal() {
-                    this.modal.open = false;
-                    this.modal.url = '';
-                }
-            }
-        }
-    </script>
-
-    <!-- 引入 Alpine.js -->
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-        /* 限制顯示行數，超過3行顯示 ... */
-        .line-clamp-3 {
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans" x-data="appData()">
 
-    <!-- 演示模式警告條 -->
-    <div x-show="isDemoMode" class="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 text-center text-sm">
-        ⚠️ 目前為 <b>演示模式 (Demo Mode)</b>，請在電腦上執行 <code>python app.py</code> 以讀取真實檔案。
-    </div>
-
-    <!-- 頂部導航欄 (地點) -->
-    <header class="bg-white shadow-md sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex-shrink-0 flex items-center">
-                    <h1 class="text-xl font-bold text-indigo-600">📂 情熱天堂資料庫</h1>
-                </div>
-                <!-- 地點選單 -->
-                <div class="flex space-x-4 overflow-x-auto pb-2 sm:pb-0">
-                    <template x-for="loc in locations" :key="loc">
-                        <button 
-                            @click="selectLocation(loc)"
+    <header class="bg-white shadow sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-indigo-600 cursor-pointer" @click="reset()">📂 情熱天堂資料庫</h1>
+            <div class="flex space-x-2 overflow-x-auto">
+                <template x-for="loc in locations" :key="loc">
+                    <button @click="selectLocation(loc)" 
                             :class="currentLocation === loc ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-200'"
-                            class="px-3 py-2 rounded-md text-sm font-medium transition duration-150 whitespace-nowrap"
-                            x-text="loc">
-                        </button>
-                    </template>
-                </div>
+                            class="px-3 py-1 rounded text-sm transition whitespace-nowrap" x-text="loc"></button>
+                </template>
             </div>
         </div>
     </header>
 
-    <!-- 主要內容區 -->
-    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        
-        <!-- 如果還沒選地點 -->
+    <main class="max-w-7xl mx-auto py-6 px-4">
         <div x-show="!currentLocation" class="text-center py-20 text-gray-500">
-            <p class="text-2xl">請選擇上方的一個地點</p>
+            <p class="text-2xl">請點選上方的地點以開始瀏覽</p>
         </div>
 
-        <!-- 人員列表區 (Grid 排版更新) -->
-        <div x-show="currentLocation && !currentPerson" class="px-4">
-            <h2 class="text-lg font-semibold mb-4 text-gray-700">📍 <span x-text="currentLocation"></span> 的人員列表</h2>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <template x-for="person in people" :key="person.name">
-                    <div @click="selectPerson(person)" 
-                         class="bg-white rounded-lg shadow-md hover:shadow-xl cursor-pointer transform hover:-translate-y-1 transition duration-200 overflow-hidden border border-gray-200 flex flex-col h-full">
-                        
-                        <!-- 上方：圖片區域 (高度調整為 h-96, 約 384px) -->
-                        <div class="h-96 bg-gray-200 w-full relative">
-                            <template x-if="person.thumbnail">
-                                <!-- 加入 object-top 優先顯示上方(臉部) -->
-                                <img :src="person.thumbnail" class="w-full h-full object-cover object-top">
-                            </template>
-                            <template x-if="!person.thumbnail">
-                                <div class="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-100">
-                                    <span class="text-5xl mb-2">👤</span>
-                                    <span class="text-xs">無封面照片</span>
-                                </div>
-                            </template>
+        <div x-show="currentLocation && !currentPerson" x-cloak>
+            <h2 class="text-lg font-bold mb-4 text-gray-700">📍 <span x-text="currentLocation"></span> 人員列表</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <template x-for="p in people" :key="p.name">
+                    <div @click="selectPerson(p)" class="bg-white rounded shadow hover:shadow-lg cursor-pointer transition flex flex-col overflow-hidden">
+                        <div class="h-80 bg-gray-200 relative">
+                            <img x-show="p.thumbnail" :src="p.thumbnail" class="w-full h-full object-cover object-top">
+                            <div x-show="!p.thumbnail" class="w-full h-full flex items-center justify-center text-gray-400">無照片</div>
                         </div>
-
-                        <!-- 下方：文字區域 -->
-                        <div class="p-4 flex flex-col flex-grow">
-                            <h3 class="text-xl font-bold text-gray-900 mb-2" x-text="person.name"></h3>
-                            <div class="text-sm text-gray-600 flex-grow">
-                                <p class="whitespace-pre-line line-clamp-3" x-text="person.preview || '尚無文字簡介'"></p>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-gray-100">
-                                <span class="text-indigo-600 text-sm font-medium hover:underline">查看詳細內容 &rarr;</span>
-                            </div>
+                        <div class="p-4">
+                            <h3 class="font-bold text-lg" x-text="p.name"></h3>
+                            <p class="text-sm text-gray-600 mt-2 whitespace-pre-line line-clamp-3" x-text="p.preview"></p>
                         </div>
-
                     </div>
                 </template>
             </div>
-
-            <!-- 空狀態 -->
-            <div x-show="people.length === 0" class="text-center text-gray-400 py-20">
-                此地點資料夾內沒有人員資料
-            </div>
+            <div x-show="people.length === 0" class="text-center text-gray-400 py-10">此地點無資料</div>
         </div>
 
-        <!-- 人員詳細內容區 -->
-        <div x-show="currentPerson" class="px-4">
-            <!-- 麵包屑導航 -->
-            <button @click="currentPerson = null" class="mb-4 text-indigo-600 hover:text-indigo-800 flex items-center font-medium">
-                &larr; 返回 <span x-text="currentLocation" class="mx-1 font-bold"></span> 列表
-            </button>
+        <div x-show="currentPerson" x-cloak>
+            <button @click="currentPerson = null" class="mb-4 text-indigo-600 hover:underline">← 返回列表</button>
+            <h2 class="text-2xl font-bold mb-6">👤 <span x-text="currentPerson"></span></h2>
 
-            <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-2">
-                👤 <span x-text="currentPerson"></span>
-            </h2>
-
-            <!-- 文字內容 (.docx) -->
-            <div x-show="content.text.has_doc" class="bg-white rounded-lg shadow p-6 mb-8 border-l-4 border-indigo-500">
-                <h3 class="text-lg font-semibold mb-3 text-gray-700">📄 文檔內容</h3>
-                <div class="text-gray-600 whitespace-pre-line leading-relaxed">
-                    <!-- 預覽模式 -->
-                    <div x-show="!textExpanded">
-                        <span x-text="content.text.preview"></span>
-                        <span x-show="content.text.full.length > content.text.preview.length" class="text-gray-400">...</span>
-                    </div>
-                    <!-- 完整模式 -->
-                    <div x-show="textExpanded" x-text="content.text.full" x-transition></div>
+            <div x-show="content.text.has_doc" class="bg-white p-6 rounded shadow mb-8 border-l-4 border-indigo-500">
+                <div class="whitespace-pre-line text-gray-700 leading-relaxed">
+                    <span x-show="!textExpanded" x-text="content.text.preview + '...'"></span>
+                    <span x-show="textExpanded" x-text="content.text.full"></span>
                 </div>
-                <button 
-                    x-show="content.text.full.length > content.text.preview.length"
-                    @click="textExpanded = !textExpanded" 
-                    class="mt-3 text-sm text-indigo-600 hover:underline focus:outline-none">
-                    <span x-text="textExpanded ? '收起內容' : '閱讀更多...'"></span>
-                </button>
+                <button @click="textExpanded = !textExpanded" class="mt-2 text-indigo-600 text-sm" x-text="textExpanded ? '收起' : '閱讀全文'"></button>
             </div>
 
-            <!-- 照片與影片網格 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- 影片 -->
-                <template x-for="vid in content.videos" :key="vid.name">
-                    <div class="group relative aspect-video bg-black rounded-lg overflow-hidden shadow-md cursor-pointer"
-                         @click="openModal('video', vid.url)">
-                        <video :src="vid.url" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"></video>
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="bg-white/30 rounded-full p-3 group-hover:bg-white/50 transition">▶️</span>
-                        </div>
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <p class="text-white text-xs truncate" x-text="vid.name"></p>
-                        </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <template x-for="vid in content.videos">
+                    <div class="aspect-video bg-black rounded overflow-hidden relative group cursor-pointer" @click="openModal('video', vid.url)">
+                        <video :src="vid.url" class="w-full h-full object-cover opacity-80"></video>
+                        <div class="absolute inset-0 flex items-center justify-center text-white text-3xl">▶️</div>
                     </div>
                 </template>
-
-                <!-- 照片 -->
-                <template x-for="img in content.images" :key="img.name">
-                    <div class="group relative aspect-square bg-gray-200 rounded-lg overflow-hidden shadow-md cursor-pointer"
-                         @click="openModal('image', img.url)">
-                        <img :src="img.url" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-                        <div class="absolute bottom-0 left-0 right-0 bg-black/50 p-2 opacity-0 group-hover:opacity-100 transition">
-                            <p class="text-white text-xs truncate" x-text="img.name"></p>
-                        </div>
+                <template x-for="img in content.images">
+                    <div class="aspect-square bg-gray-200 rounded overflow-hidden cursor-pointer" @click="openModal('image', img.url)">
+                        <img :src="img.url" class="w-full h-full object-cover hover:scale-105 transition">
                     </div>
                 </template>
-            </div>
-            
-            <div x-show="content.images.length === 0 && content.videos.length === 0 && !content.text.has_doc" class="text-center py-10 text-gray-400">
-                此資料夾內沒有媒體檔案
             </div>
         </div>
     </main>
 
-    <!-- 燈箱 Modal (全螢幕預覽) -->
-    <div x-show="modal.open" 
-         x-transition.opacity
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-         style="display: none;">
-        
-        <!-- 關閉按鈕 -->
-        <button @click="closeModal()" class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300">&times;</button>
-
-        <!-- 內容容器 -->
-        <div class="max-w-5xl max-h-full w-full flex items-center justify-center" @click.outside="closeModal()">
-            <img x-show="modal.type === 'image'" :src="modal.url" class="max-h-[85vh] max-w-full rounded shadow-2xl">
-            <video x-show="modal.type === 'video'" :src="modal.url" controls autoplay class="max-h-[85vh] max-w-full rounded shadow-2xl"></video>
-        </div>
+    <div x-show="modal.open" class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" x-cloak @click.self="closeModal()">
+        <button @click="closeModal()" class="absolute top-5 right-5 text-white text-4xl">&times;</button>
+        <img x-show="modal.type === 'image'" :src="modal.url" class="max-h-[90vh] max-w-full rounded">
+        <video x-show="modal.type === 'video'" :src="modal.url" controls autoplay class="max-h-[90vh] max-w-full rounded"></video>
     </div>
+
+    <script>
+        function appData() {
+            return {
+                locations: [], currentLocation: null,
+                people: [], currentPerson: null,
+                content: { text: {}, images: [], videos: [] },
+                textExpanded: false, modal: { open: false, type: '', url: '' },
+
+                async init() {
+                    const res = await fetch('/api/locations');
+                    this.locations = await res.json();
+                },
+                async selectLocation(loc) {
+                    this.currentLocation = loc; this.currentPerson = null;
+                    const res = await fetch(`/api/people/${loc}`);
+                    this.people = await res.json();
+                },
+                async selectPerson(p) {
+                    this.currentPerson = p.name; this.textExpanded = false;
+                    const res = await fetch(`/api/content/${this.currentLocation}/${p.name}`);
+                    this.content = await res.json();
+                },
+                openModal(type, url) { this.modal = { open: true, type, url }; },
+                closeModal() { this.modal.open = false; this.modal.url = ''; },
+                reset() { this.currentLocation = null; this.currentPerson = null; }
+            }
+        }
+    </script>
 </body>
 </html>
