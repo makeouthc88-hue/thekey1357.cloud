@@ -1,3 +1,2 @@
 Flask
 gunicorn
-mammoth  <--- 新增，用於讀取 DOCX
